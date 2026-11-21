@@ -1,134 +1,33 @@
-// Boot and the one loop: input is read every frame, the world advances in fixed 1/60 s steps
-// (several in a slow frame, none in a fast one), and the renderer paints what is there. The game
-// moves between four screens: title, play, paused and game over.
-//
-// ?seed=N fixes the falling pattern. ?shot=start|play|end (with &seed=N) stages that scene
-// instead of running the loop, paints it twice and sets window.__shotReady for a screenshot.
-import { BEST_KEY, LIVES, STEP } from './config.js';
-import { createRandom } from './random.js';
-import { createWorld, EVENT_HIT, EVENT_OVER } from './world.js';
-import { ACTION_CONFIRM, ACTION_PAUSE, createInput } from './input.js';
-import { createRenderer, SCREEN_OVER, SCREEN_PAUSED, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
-import { stageShot } from './shots.js';
-
-/** The longest frame the loop catches up on; a longer stall (a hidden tab) is dropped, not replayed. */
-const MAX_FRAME = 0.25;
-
-const params = new URLSearchParams(window.location.search);
-const shot = params.get('shot');
-const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
-const seed = Number.isInteger(seedParam) ? seedParam : Math.floor(Math.random() * 4294967296);
-
-const canvas = document.getElementById('game');
-const status = document.getElementById('status');
-const world = createWorld(createRandom(seed));
-const renderer = createRenderer(canvas);
-
-function readBest() {
-  try {
-    return Number.parseInt(window.localStorage.getItem(BEST_KEY) ?? '0', 10) || 0;
-  } catch {
-    return 0;
-  }
+import {T,scene,camera,renderer,sun} from './scene.js';
+import {state} from './state.js';
+import {buildCity,city} from './city.js';
+import {createCar,updateDriving} from './vehicles.js';
+import {createMotorcycle} from './motorcycles.js';
+import {createTraffic,updateTraffic} from './traffic.js';
+import {createPedestrians,updatePedestrians} from './pedestrians.js';
+import {createDispatch} from './dispatch.js';
+import {updatePursuit} from './pursuit.js';
+import {updateHelicopter} from './helicopter.js';
+import {updateRoadblock} from './roadblocks.js';
+import {createHostiles,updateCombat} from './combat.js';
+import {updateMissions} from './missions.js';
+import {updateActivities} from './activities.js';
+import {updateRace} from './races.js';
+import {updateCrew} from './crew.js';
+import {updateEffects} from './effects.js';
+import {updateDayNight,updateSky} from './daynight.js';
+import {updateWeather} from './weather.js';
+import {updateAudio} from './audio.js';
+import {input} from './input.js';
+import {updateHUD} from './hud.js';
+import {stageShot} from './shots.js';
+buildCity();state.vehicle=createCar(0,0,0xff4c2b);createMotorcycle(5,35);createMotorcycle(-24,-35);createTraffic();createPedestrians();createDispatch();createHostiles();stageShot();renderer.shadowMap.needsUpdate=true;
+const target=new T.Vector3(),desired=new T.Vector3();let previous=performance.now(),hudClock=0,shadowClock=0;
+function updateCamera(dt){const a=state.angle;const distance=state.inVehicle?9.3:8;desired.set(state.x-Math.sin(a)*distance+Math.cos(a)*1.7,state.inVehicle?4.7:4.2,state.z-Math.cos(a)*distance-Math.sin(a)*1.7);camera.position.lerp(desired,Math.min(1,dt*8));target.set(state.x+Math.sin(a)*17,1.1,state.z+Math.cos(a)*17);camera.lookAt(target);}
+function frame(now){const dt=Math.min(.04,(now-previous)/1000);previous=now;state.elapsed+=dt;
+ if(!state.paused&&state.menu!=='start'){updateDriving(dt,input,city);updateCombat(dt,input,city);updateTraffic(dt);updatePedestrians(dt);updatePursuit(dt);updateRoadblock(dt);updateCrew(dt);updateMissions(dt);updateActivities(dt);updateRace(dt);}
+ updateHelicopter(dt);updateDayNight(state.paused?0:dt);updateSky();updateWeather(dt);updateEffects(dt);updateAudio();updateCamera(dt);
+ sun.position.set(state.x-65,80,state.z-50);sun.target.position.set(state.x,0,state.z);sun.target.updateMatrixWorld();
+ shadowClock+=dt;if(shadowClock>.7){renderer.shadowMap.needsUpdate=true;shadowClock=0;}hudClock+=dt;if(hudClock>.1){updateHUD();hudClock=0;}renderer.render(scene,camera);requestAnimationFrame(frame);
 }
-
-function saveBest(value) {
-  try {
-    window.localStorage.setItem(BEST_KEY, String(value));
-  } catch {
-    // Storage can be off (private windows): the best score then lasts this visit only.
-  }
-}
-
-function runShot(name) {
-  const scene = stageShot(name, world);
-  let painted = 0;
-  function paint() {
-    renderer.draw(world.state, scene.screen, scene.best);
-    painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
-    else window.__shotReady = true;
-  }
-  requestAnimationFrame(paint);
-}
-
-function runGame() {
-  const input = createInput(canvas);
-  let screen = SCREEN_TITLE;
-  let best = readBest();
-  let accumulator = 0;
-  let last = performance.now();
-
-  // Screen readers (and anyone watching the page's text) hear the screen changes and each hit.
-  function announce(message) {
-    status.textContent = message;
-  }
-
-  function startGame() {
-    world.reset();
-    accumulator = 0;
-    screen = SCREEN_PLAY;
-    announce(`Playing. ${LIVES} lives.`);
-  }
-
-  function endGame() {
-    screen = SCREEN_OVER;
-    if (world.state.score > best) {
-      best = world.state.score;
-      saveBest(best);
-    }
-    announce(`Game over. Score ${world.state.score}. Best ${best}.`);
-  }
-
-  function handleActions() {
-    const actions = input.takeActions();
-    if (actions & ACTION_CONFIRM && (screen === SCREEN_TITLE || screen === SCREEN_OVER)) startGame();
-    else if (actions & ACTION_PAUSE && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    } else if (actions & (ACTION_PAUSE | ACTION_CONFIRM) && screen === SCREEN_PAUSED) {
-      screen = SCREEN_PLAY;
-      announce('Playing.');
-    }
-  }
-
-  function step() {
-    if (screen === SCREEN_TITLE) {
-      world.step(STEP, 0, true);
-      return;
-    }
-    const events = world.step(STEP, input.direction(), false);
-    if (events & EVENT_OVER) endGame();
-    else if (events & EVENT_HIT) announce(world.state.lives === 1 ? 'Hit. 1 life left.' : `Hit. ${world.state.lives} lives left.`);
-  }
-
-  function frame(now) {
-    requestAnimationFrame(frame);
-    accumulator += Math.min((now - last) / 1000, MAX_FRAME);
-    last = now;
-    handleActions();
-    if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
-      while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
-        step();
-        accumulator -= STEP;
-      }
-    } else {
-      accumulator = 0;
-    }
-    renderer.draw(world.state, screen, best);
-  }
-
-  // Leaving the tab pauses a running game rather than letting blocks fall unseen.
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && screen === SCREEN_PLAY) {
-      screen = SCREEN_PAUSED;
-      announce('Paused.');
-    }
-  });
-
-  announce('Block Dodger. Press Space or click to start.');
-  requestAnimationFrame(frame);
-}
-
-if (shot) runShot(shot);
-else runGame();
+camera.position.set(state.x+1.7,4.7,state.z-10.5);updateCamera(1);window.CostaLuna={state,input,city};state.detection='LIVE CITY UPLINK';updateHUD();requestAnimationFrame(frame);

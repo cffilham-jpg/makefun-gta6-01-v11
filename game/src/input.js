@@ -1,53 +1,23 @@
-// Keyboard and pointer input. Held keys give a steering direction; one-shot presses (start or
-// restart, pause) are queued as bit flags and taken once by the loop, so a press between two
-// frames is never lost and never counted twice.
-
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
-
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const CONFIRM = new Set(['Space', 'Enter']);
-const PAUSE = new Set(['KeyP', 'Escape']);
-
-export function createInput(target) {
-  let left = false;
-  let right = false;
-  let actions = 0;
-
-  window.addEventListener('keydown', (event) => {
-    if (LEFT.has(event.code)) left = true;
-    else if (RIGHT.has(event.code)) right = true;
-    else if (CONFIRM.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_CONFIRM;
-    } else if (PAUSE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_PAUSE;
-    } else return;
-    event.preventDefault();
-  });
-  window.addEventListener('keyup', (event) => {
-    if (LEFT.has(event.code)) left = false;
-    else if (RIGHT.has(event.code)) right = false;
-  });
-  // A key released while the tab is hidden never sends keyup: let go of everything on blur.
-  window.addEventListener('blur', () => {
-    left = false;
-    right = false;
-  });
-  target.addEventListener('pointerdown', () => {
-    actions |= ACTION_CONFIRM;
-  });
-
-  return {
-    /** -1 for left, 1 for right, 0 for neither or both. */
-    direction() {
-      return (right ? 1 : 0) - (left ? 1 : 0);
-    },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
-    takeActions() {
-      const taken = actions;
-      actions = 0;
-      return taken;
-    },
-  };
-}
+import {state,notify} from './state.js';
+import {enterExit} from './vehicles.js';
+import {selectWeapon} from './weapons.js';
+import {useCrew} from './crew.js';
+import {startActivity,shop,repair} from './activities.js';
+import {startRace} from './races.js';
+import {saveGame} from './save.js';
+import {startRadio,toggleRadio} from './radio.js';
+import {startEngineAudio} from './audio.js';
+export const input=new Set();
+export function beginPlay(){state.menu='';state.paused=false;startRadio();startEngineAudio();notify('Welcome to Costa Luna • M chapters • E enter / exit');}
+addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Tab'].includes(e.code))e.preventDefault();input.add(e.code);if(e.repeat)return;
+ if(e.code==='Enter'&&state.menu==='start'){beginPlay();return;}
+ if(e.code==='Escape'){state.menu=state.menu?'':'pause';state.paused=!!state.menu;saveGame();return;}
+ if(e.code==='KeyM'){state.menu=state.menu==='chapters'?'':'chapters';state.paused=!!state.menu;return;}
+ if(state.menu)return;
+ if(e.code==='KeyE')enterExit();if(/^Digit[1-6]$/.test(e.code))selectWeapon(Number(e.code.slice(5))-1);
+ if(e.code==='KeyZ')useCrew(0);if(e.code==='KeyX')useCrew(1);if(e.code==='KeyC')useCrew(2);
+ if(e.code==='KeyJ')startActivity('taxi');if(e.code==='KeyV')startActivity('vigilante');if(e.code==='KeyL')startActivity('delivery');if(e.code==='KeyT')startRace();if(e.code==='KeyB')shop();if(e.code==='KeyR')repair();if(e.code==='KeyN')toggleRadio();
+ if(e.code==='KeyG'){state.menu='garage';state.paused=true;}if(e.code==='KeyP'){const choices=['golden','rain','clear'];state.weather=choices[(choices.indexOf(state.weather)+1)%3];notify('Weather: '+state.weather);}if(e.code==='KeyH'){state.time=state.isNight?17.5:22;}
+});
+addEventListener('keyup',e=>input.delete(e.code));addEventListener('blur',()=>input.clear());
+addEventListener('mousedown',e=>{if(e.button===0)input.add('Mouse0');if(!state.menu)startRadio();});addEventListener('mouseup',()=>input.delete('Mouse0'));

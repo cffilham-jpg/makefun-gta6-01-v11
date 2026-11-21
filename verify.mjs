@@ -1,0 +1,23 @@
+import {chromium} from '/home/hatch/.npm/_npx/e41f203b7505f1fb/node_modules/playwright/index.mjs';
+const browser=await chromium.launch({headless:true,executablePath:'/home/hatch/.cache/ms-playwright/chromium_headless_shell-1255/chrome-headless-shell-linux64/chrome-headless-shell',args:['--no-sandbox','--disable-dev-shm-usage','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[],requests=[];
+page.setDefaultTimeout(180000);
+page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});page.on('request',r=>{if(!r.url().startsWith('http://127.0.0.1:8080/'))requests.push(r.url());});page.on('response',r=>{if(r.status()>=400)errors.push(r.status()+' '+r.url());});
+function assert(value,message){if(!value)throw new Error(message);console.log('PASS',message);}
+await page.goto('http://127.0.0.1:8080/');await page.waitForFunction(()=>!!window.CostaLuna);await page.keyboard.press('Enter');
+await page.keyboard.down('w');await page.waitForFunction(()=>CostaLuna.state.z>.05);await page.keyboard.up('w');assert(await page.evaluate(()=>CostaLuna.state.inVehicle&&CostaLuna.state.speed>0),'drive with keyboard');
+await page.keyboard.press('e');assert(await page.evaluate(()=>!CostaLuna.state.inVehicle),'exit car');
+const footZ=await page.evaluate(()=>CostaLuna.state.z);await page.keyboard.down('w');await page.waitForFunction(z=>CostaLuna.state.z>z+.2,footZ);await page.keyboard.up('w');assert(await page.evaluate(z=>CostaLuna.state.z>z,footZ),'walk with keyboard');
+await page.keyboard.down('f');await page.waitForFunction(()=>CostaLuna.state.ammo[1]<=93);await page.keyboard.up('f');assert(await page.evaluate(()=>CostaLuna.state.kills>0&&CostaLuna.state.rp>320),'fire, damage hostile, earn respect');
+await page.keyboard.press('z');assert(await page.evaluate(()=>CostaLuna.state.smoke>0&&CostaLuna.state.crew[0]>0),'crew smoke activates with cooldown');
+await page.evaluate(()=>{CostaLuna.state.condition=30;CostaLuna.state.health=60;});await page.keyboard.press('x');assert(await page.evaluate(()=>CostaLuna.state.condition===70&&CostaLuna.state.health===80),'crew field repair restores real condition and health');
+const oldTimer=await page.evaluate(()=>CostaLuna.state.timer);await page.keyboard.press('c');assert(await page.evaluate(t=>CostaLuna.state.eagle>0&&CostaLuna.state.timer>t+10,oldTimer),'lookout adds mission time and awareness');
+await page.evaluate(()=>{const s=CostaLuna.state;s.x=5;s.z=35;s.inVehicle=false;});await page.keyboard.press('e');assert(await page.evaluate(()=>CostaLuna.state.inVehicle&&CostaLuna.state.vehicle.kind==='bike'),'enter motorcycle');
+await page.keyboard.down('w');await page.waitForFunction(()=>CostaLuna.state.speed>1);await page.keyboard.up('w');assert(await page.evaluate(()=>CostaLuna.state.z>35),'ride motorcycle');
+await page.keyboard.press('m');await page.locator('[data-chapter="1"]').click();assert(await page.evaluate(()=>CostaLuna.state.chapter===1&&CostaLuna.state.mission&&!CostaLuna.state.menu),'accept chapter from chapter select');
+await page.evaluate(async()=>{const {objective}=await import('./src/missions.js');const o=objective();CostaLuna.state.x=o.x;CostaLuna.state.z=o.z;CostaLuna.state.speed=0;});await page.waitForFunction(()=>CostaLuna.state.stage===1);assert(await page.evaluate(()=>CostaLuna.state.stage===1),'mission objective advances live stage');
+await page.keyboard.press('j');assert(await page.evaluate(()=>CostaLuna.state.activity==='taxi'&&!!CostaLuna.state.activityTarget),'taxi fare creates objective');
+await page.evaluate(()=>{const s=CostaLuna.state;s.x=s.activityTarget.x;s.z=s.activityTarget.z;});await page.waitForFunction(()=>CostaLuna.state.activity===null);assert(await page.evaluate(()=>CostaLuna.state.deliveries>0),'taxi destination pays and completes');
+await page.keyboard.press('Escape');assert(await page.evaluate(()=>JSON.parse(localStorage.getItem('costa-luna-save')).chapter===1),'save persists current progression');
+await page.keyboard.press('Escape');await page.keyboard.press('p');await page.keyboard.press('h');await page.keyboard.press('n');assert(await page.evaluate(()=>CostaLuna.state.weather==='rain'&&CostaLuna.state.time>19&&!CostaLuna.state.radio),'weather, night, and radio controls');
+assert(errors.length===0,'zero browser console or JavaScript errors');assert(requests.length===0,'zero external runtime requests');console.log('ALL BROWSER CHECKS PASSED');await browser.close();

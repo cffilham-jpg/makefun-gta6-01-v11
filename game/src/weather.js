@@ -1,0 +1,8 @@
+import {T,scene,box,material} from './scene.js';
+import {state} from './state.js';
+import {roadMaterials} from './city.js';
+const count=900,positions=new Float32Array(count*3);for(let i=0;i<count;i++){positions[i*3]=(Math.random()-.5)*100;positions[i*3+1]=Math.random()*50;positions[i*3+2]=(Math.random()-.5)*100;}
+const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(positions,3));const rain=new T.Points(geometry,new T.PointsMaterial({color:0xb4dfef,size:.22,transparent:true,opacity:.8}));scene.add(rain);
+const streaks=new Float32Array(160*6);for(let i=0;i<160;i++){const x=(Math.random()-.5)*65,y=Math.random()*24,z=(Math.random()-.5)*65;streaks.set([x,y,z,x+.12,y-1.4,z],i*6);}const streakGeometry=new T.BufferGeometry();streakGeometry.setAttribute('position',new T.BufferAttribute(streaks,3));const rainLines=new T.LineSegments(streakGeometry,new T.LineBasicMaterial({color:0xa9d9ed,transparent:true,opacity:.32}));scene.add(rainLines);
+const puddles=[];for(let i=0;i<36;i++){const mat=new T.MeshBasicMaterial({color:i%2?0x22b8bf:0xef54a7,transparent:true,opacity:.17,depthWrite:false});const p=box(scene,2+i%4,.015,6+i%6,0,(i%2?1:-1)*(6+i%16),.12,-50+i*8,mat);puddles.push(p);}
+export function updateWeather(dt){const wet=state.weather==='rain';roadMaterials.forEach(m=>{m.roughness=wet?.14:.7;m.metalness=wet?.38:0;});rain.visible=wet;rainLines.visible=wet;puddles.forEach(p=>p.visible=wet);if(!wet)return;rain.position.set(state.x,0,state.z);rainLines.position.set(state.x,-(state.elapsed*10)%12,state.z+18);for(let i=0;i<count;i++){positions[i*3+1]-=dt*25;positions[i*3]+=.8*dt;if(positions[i*3+1]<0)positions[i*3+1]=50;}geometry.attributes.position.needsUpdate=true;}

@@ -1,0 +1,5 @@
+export const districts=['Luna Marina','Casco Antiguo','Punta Alba','Torre Alta','Loma Verde','Muelle Norte'];
+export const state={x:0,z:0,angle:0,speed:0,inVehicle:true,vehicle:null,health:100,armour:75,cash:2450,rp:320,standing:[58,30,25,20,15,12],wanted:0,heat:0,condition:100,time:17.5,weather:'golden',chapter:0,stage:0,timer:180,mission:true,completed:[],owned:['Luna GT'],weapon:1,ammo:[Infinity,96,180,36,0,0],unlocked:[true,true,true,true,false,false],crew:[0,0,0],smoke:0,eagle:0,activity:null,activityTarget:null,races:0,deliveries:0,kills:0,distance:0,paused:false,menu:'start',shot:null,elapsed:0,dialogue:0,radio:true,volume:.25,toast:'',toastUntil:0};
+export function notify(text){state.toast=text;state.toastUntil=state.elapsed+4;}
+export function districtAt(x,z){if(x>160)return 2;if(x< -180)return 5;if(z< -220)return 4;if(z< -80)return 3;if(x< -55)return 1;return 0;}
+export function reward(cash,rp){state.cash+=cash;state.rp+=rp;const d=districtAt(state.x,state.z);state.standing[d]=Math.min(100,state.standing[d]+4);}

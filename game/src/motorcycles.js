@@ -1,0 +1,3 @@
+import {T,scene,box,cylinder} from './scene.js';
+import {vehicles} from './vehicles.js';
+export function createMotorcycle(x,z){const g=new T.Group();scene.add(g);g.position.set(x,0,z);for(const z0 of [-1,1]){const w=cylinder(g,.46,.46,.22,0x151b23,0,.46,z0,18);w.rotation.z=Math.PI/2;}box(g,.5,.4,1.5,0xe5b74b,0,.9,0);box(g,.6,.15,.85,0x15252c,0,1.15,-.35);box(g,1.1,.1,.1,0xd0d8ce,0,1.42,.9);for(const s of [-1,1]){const fork=box(g,.08,.8,.1,0xb9c5bc,s*.2,.8,.85);fork.rotation.x=-.25;}const bike={mesh:g,x,z,angle:0,speed:0,condition:100,kind:'bike',name:'Brisa 900',police:false};vehicles.push(bike);return bike;}

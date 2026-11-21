@@ -1,0 +1,3 @@
+import {state,notify} from './state.js';
+export const weapons=[{name:'FISTS',damage:20,range:3,rate:.45},{name:'SOL 9',damage:34,range:60,rate:.25},{name:'CORA SMG',damage:22,range:50,rate:.1},{name:'ESCOPETA',damage:70,range:25,rate:.7},{name:'VIPER',damage:90,range:120,rate:1,price:2200,rp:600},{name:'MAMBA',damage:50,range:80,rate:.12,price:3800,rp:1200}];
+export function selectWeapon(i){if(state.unlocked[i]){state.weapon=i;return;}const w=weapons[i];if(state.cash>=w.price&&state.rp>=w.rp){state.cash-=w.price;state.unlocked[i]=true;state.ammo[i]=100;state.weapon=i;notify(w.name+' purchased');}else notify(w.name+' requires $'+w.price+' and '+w.rp+' RP');}
